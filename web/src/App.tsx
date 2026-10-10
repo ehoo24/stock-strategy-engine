@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowDown, ArrowUp, BarChart3, Clock3, Database, Play, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, BarChart3, Box, Clock3, Database, Feather, Play, RefreshCw, Search, Sparkles, Star, Sun, X } from 'lucide-react';
 import { CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar } from 'recharts';
 import { api, type Candidate, type DailyBar, type MarketStatus, type RunSummary, type StrategyInfo, type StrategyRun } from './api';
 
@@ -114,13 +114,44 @@ export default function App() {
     return { date: bar.tradeDate.slice(5), close: bar.close, volume: bar.volume, ma5: movingAverage(5), ma10: movingAverage(10), ma20: movingAverage(20) };
   }), [bars]);
 
+  const navigateTo = (nextView: View) => {
+    setView(nextView);
+    requestAnimationFrame(() => document.querySelector('.results-surface')?.scrollIntoView({ behavior: 'smooth' }));
+  };
+
+  const marqueeItems = [
+    { icon: Sun, name: '行情快照' },
+    { icon: Box, name: '确定性筛选' },
+    { icon: Star, name: '趋势评分' },
+    { icon: Feather, name: '技术指标' },
+    { icon: Sparkles, name: '本地存储' },
+  ];
+
   return <div className="app-shell">
+    <video className="hero-video" autoPlay muted loop playsInline aria-hidden="true">
+      <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260325_094440_a3592600-bd1e-49e5-9bce-a73662061d83.mp4" type="video/mp4" />
+    </video>
+    <div className="video-shade" />
     <header className="topbar">
-      <div className="brand"><span className="brand-mark"><Activity size={21} strokeWidth={2.4} /></span><span><strong>Stock Strategy Engine</strong><small>A 股策略工作台</small></span></div>
-      <div className="topbar-right"><span className="market-pill"><span className={status?.count ? 'status-dot active' : 'status-dot'} />{status?.count ? `${number.format(status.count)} 只股票` : '暂无行情'}</span><span className="top-time">快照 {formatDate(status?.fetchedAt)}</span></div>
+      <div className="brand"><svg className="brand-mark" width="40" height="40" viewBox="0 0 40 40" fill="none" aria-label="Stock Strategy Engine"><path d="M8 10L14 30L20 16L26 30L32 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
+      <nav className="top-nav" aria-label="主导航"><button onClick={() => navigateTo('results')}>策略</button><button onClick={() => navigateTo('results')}>结果</button><button onClick={() => navigateTo('history')}>历史</button><button onClick={syncSnapshot}>数据</button></nav>
+      <div className="topbar-right"><span className="market-pill"><span className={status?.count ? 'status-dot active' : 'status-dot'} />{status?.count ? `${number.format(status.count)} 只股票` : '暂无行情'}</span><span className="top-time">{formatDate(status?.fetchedAt)}</span></div>
     </header>
 
-    <div className="workspace">
+    <section className="hero">
+      <div className="hero-content">
+        <p className="hero-kicker">A SHARE MARKET INTELLIGENCE</p>
+        <h1>洞察市场，<br />掌握<span className="glow-word">资产。<span aria-hidden="true">资产。</span><span aria-hidden="true">资产。</span></span></h1>
+        <p className="hero-copy">用确定性策略筛选全市场行情，让每一次判断都能回溯到数据与信号。</p>
+        <div className="hero-actions">
+          <button className="glow-button" onClick={startRun} disabled={!!busy || !status?.count}><span className="button-glow" /> <Play size={18} fill="currentColor" />{busy === 'run' ? '策略运行中...' : '启动策略轨道'}</button>
+          <button className="ghost-button" onClick={syncSnapshot} disabled={!!busy}><RefreshCw size={17} className={busy === 'sync' ? 'spin' : ''} />{busy === 'sync' ? '同步行情中' : '刷新行情'}</button>
+        </div>
+      </div>
+      <div className="hero-marquee"><p>策略能力</p><div className="marquee-window"><div className="marquee-track">{[...marqueeItems, ...marqueeItems].map(({ icon: Icon, name }, index) => <span className="marquee-item" key={`${name}-${index}`}><Icon />{name}</span>)}</div></div></div>
+    </section>
+
+    <div className="workspace results-surface">
       <aside className="sidebar">
         <div className="sidebar-section-label">工作区</div>
         <button className={`nav-item ${view === 'results' ? 'selected' : ''}`} onClick={() => setView('results')}><BarChart3 size={18} />策略结果</button>
@@ -128,17 +159,17 @@ export default function App() {
         <div className="sidebar-divider" />
         <div className="sidebar-section-label">数据源</div>
         <div className="source-block"><Database size={18} /><div><strong>全市场快照</strong><span>{status?.source ?? '尚未同步'}</span></div></div>
-        <div className="sidebar-footer">本地研究工具 · 数据仅供参考</div>
+        <div className="sidebar-footer">本地研究工具<br />数据仅供参考</div>
       </aside>
 
       <main className="main-content">
-        <div className="page-heading"><div><p className="eyebrow">MARKET INTELLIGENCE</p><h1>{view === 'results' ? '策略结果' : '运行历史'}</h1><p className="subtitle">{view === 'results' ? '查看选股结果与关键技术信号' : '回看每一次策略运行的结果'}</p></div><div className="heading-actions"><button className="button secondary" onClick={syncSnapshot} disabled={!!busy} title="重新获取全市场行情"><RefreshCw size={16} className={busy === 'sync' ? 'spin' : ''} />{busy === 'sync' ? '同步中' : '刷新行情'}</button></div></div>
+        <div className="page-heading"><div><p className="eyebrow">MARKET INTELLIGENCE</p><h1>{view === 'results' ? '策略结果' : '运行历史'}</h1><p className="subtitle">{view === 'results' ? '查看选股结果与关键技术信号' : '回看每一次策略运行的结果'}</p></div><div className="heading-actions"><span className="snapshot-label">快照 · {formatDate(status?.fetchedAt)}</span></div></div>
 
         {error && <div className="alert error"><span>{error}</span><button aria-label="关闭错误提示" onClick={() => setError('')}><X size={16} /></button></div>}
         {notice && <div className="alert notice"><span>{notice}</span><button aria-label="关闭提示" onClick={() => setNotice('')}><X size={16} /></button></div>}
 
         {view === 'results' ? <>
-          <section className="run-controls"><div className="control-copy"><span className="section-kicker">策略运行</span><strong>选择策略并生成候选名单</strong><span>运行时使用已保存的行情快照；需要最新数据请先刷新行情。</span></div><div className="control-actions"><label className="select-wrap"><SlidersHorizontal size={16} /><select aria-label="选择策略" value={strategyId} onChange={(event) => setStrategyId(event.target.value)}>{strategies.map((strategy) => <option key={strategy.id} value={strategy.id}>{strategy.name}</option>)}</select></label><button className="button primary" onClick={startRun} disabled={!!busy || !status?.count}><Play size={16} fill="currentColor" />{busy === 'run' ? '运行中...' : '运行策略'}</button></div></section>
+          <section className="run-controls"><div className="control-copy"><span className="section-kicker">策略运行</span><strong>选择策略并生成候选名单</strong><span>使用本地行情快照，结果将自动保存到运行历史。</span></div><div className="control-actions"><label className="select-wrap"><Activity size={16} /><select aria-label="选择策略" value={strategyId} onChange={(event) => setStrategyId(event.target.value)}>{strategies.map((strategy) => <option key={strategy.id} value={strategy.id}>{strategy.name}</option>)}</select></label><button className="button primary" onClick={startRun} disabled={!!busy || !status?.count}><Play size={16} fill="currentColor" />{busy === 'run' ? '运行中...' : '运行策略'}</button></div></section>
 
           {run && <><section className="metrics"><Metric label="扫描股票" value={number.format(run.scannedCount)} suffix="只" /><Metric label="粗筛通过" value={number.format(run.coarseMatchedCount)} suffix="只" /><Metric label="最终入选" value={number.format(run.candidates.length)} suffix="只" accent /><Metric label="数据快照" value={run.snapshotFetchedAt ? new Date(run.snapshotFetchedAt).toLocaleDateString('zh-CN') : '--'} suffix="" /></section>
             <div className="section-title-row"><div><h2>候选股票</h2><p>策略：{strategies.find((item) => item.id === run.strategyId)?.name ?? run.strategyId} · 运行于 {formatDate(run.finishedAt)}</p></div><span className="result-count">{filtered.length} 条结果</span></div>
