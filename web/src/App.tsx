@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowDown, ArrowUp, BarChart3, Box, Clock3, Database, Feather, Play, RefreshCw, Search, Sparkles, Star, Sun, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, BarChart3, Box, Clock3, Database, Feather, Moon, Play, RefreshCw, Search, Sparkles, Star, Sun, X } from 'lucide-react';
 import { CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar } from 'recharts';
 import { api, type Candidate, type DailyBar, type MarketStatus, type RunSummary, type StrategyInfo, type StrategyRun } from './api';
 
 type View = 'results' | 'history';
 type SortKey = 'score' | 'change' | 'turnover';
+type Theme = 'dark' | 'light';
 
 const number = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 });
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '暂无数据';
@@ -36,6 +37,16 @@ export default function App() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem('stock-strategy-theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.style.colorScheme = theme;
+    localStorage.setItem('stock-strategy-theme', theme);
+  }, [theme]);
 
   const openRun = useCallback(async (runId: string) => {
     try {
@@ -127,7 +138,7 @@ export default function App() {
     { icon: Sparkles, name: '本地存储' },
   ];
 
-  return <div className="app-shell">
+  return <div className="app-shell" data-theme={theme}>
     <video className="hero-video" autoPlay muted loop playsInline aria-hidden="true">
       <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260325_094440_a3592600-bd1e-49e5-9bce-a73662061d83.mp4" type="video/mp4" />
     </video>
@@ -135,6 +146,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><svg className="brand-mark" width="40" height="40" viewBox="0 0 40 40" fill="none" aria-label="Stock Strategy Engine"><path d="M8 10L14 30L20 16L26 30L32 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
       <nav className="top-nav" aria-label="主导航"><button onClick={() => navigateTo('results')}>策略</button><button onClick={() => navigateTo('results')}>结果</button><button onClick={() => navigateTo('history')}>历史</button><button onClick={syncSnapshot}>数据</button></nav>
+      <button className="theme-toggle" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} aria-label={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'} title={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
       <div className="topbar-right"><span className="market-pill"><span className={status?.count ? 'status-dot active' : 'status-dot'} />{status?.count ? `${number.format(status.count)} 只股票` : '暂无行情'}</span><span className="top-time">{formatDate(status?.fetchedAt)}</span></div>
     </header>
 
