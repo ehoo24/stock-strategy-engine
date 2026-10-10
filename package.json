@@ -1,0 +1,25 @@
+{
+  "name": "stock-strategy-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent A-share market data and deterministic screening engine",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sync:snapshot": "tsx src/cli.ts sync-snapshot",
+    "sync:bars": "tsx src/cli.ts sync-bars",
+    "strategy": "tsx src/cli.ts strategy volume-trend",
+    "pipeline": "tsx src/cli.ts pipeline volume-trend"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.4-r.1",
+    "stock-sdk": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.10"
+  }
+}
