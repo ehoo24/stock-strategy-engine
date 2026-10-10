@@ -42,10 +42,7 @@ export const volumeTrendStrategy: StockStrategy = {
 };
 
 function passesCoarseFilter(row: MarketSnapshot) {
-  const isSt = /^\*?ST|退/i.test(row.name);
   return (
-    !isSt &&
-    row.exchange !== 'BJ' &&
     between(row.changePercent, 1, 7) &&
     atLeast(row.turnoverRate, 3) &&
     atLeast(row.amountYuan, 100_000_000) &&

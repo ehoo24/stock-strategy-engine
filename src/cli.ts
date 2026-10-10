@@ -67,7 +67,7 @@ async function runStrategy(id: string) {
 function printStrategyResult(result: StrategyResult) {
   console.log(`\n策略：${result.strategyId}`);
   console.log(`快照时间：${result.snapshotFetchedAt ?? '--'}`);
-  console.log(`全市场 ${result.scannedCount} 只，粗筛 ${result.coarseMatchedCount} 只，最终 ${result.candidates.length} 只`);
+  console.log(`可交易股票 ${result.scannedCount} 只，粗筛 ${result.coarseMatchedCount} 只，最终 ${result.candidates.length} 只`);
   console.table(
     result.candidates.map((item, index) => ({
       rank: index + 1,
