@@ -33,6 +33,17 @@ npm run sync:bars -- 100
 
 数据库默认保存在 `data/market.duckdb`。可通过 `STOCK_DB_PATH` 指定其他位置。
 
+## 本地可视化预览（v1 开发中）
+
+先启动 API 服务，再另开一个终端启动前端：
+
+```bash
+npm run serve
+npm run dev
+```
+
+浏览器访问 `http://127.0.0.1:5173/`。页面可查看已有策略结果和运行历史，也可刷新行情、运行放量趋势策略。刷新行情会请求外部数据；单独运行策略使用本地快照。构建前端可运行 `npm run build:web`，构建后 `npm run serve` 可在 `http://localhost:4310/` 提供页面和 API。
+
 ## 放量趋势策略
 
 粗筛：

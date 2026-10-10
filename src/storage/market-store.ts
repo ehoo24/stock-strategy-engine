@@ -82,6 +82,24 @@ interface DailyBarRow {
   fetched_at: Date | string;
 }
 
+interface StrategyRunRow {
+  run_id: string;
+  strategy_id: string;
+  started_at: Date | string;
+  finished_at: Date | string;
+  snapshot_fetched_at: Date | string | null;
+  scanned_count: number;
+  coarse_matched_count: number;
+  candidate_count: number;
+  result_json: string;
+  warnings_json: string;
+}
+
+export type StrategyRunSummary = Omit<StrategyResult, 'candidates' | 'warnings'> & {
+  candidateCount: number;
+  warningCount: number;
+};
+
 export class MarketStore {
   private instance?: DuckDBInstance;
 
@@ -229,6 +247,50 @@ export class MarketStore {
         },
       ).then(() => undefined),
     );
+  }
+
+  async listStrategyRuns(limit = 30): Promise<StrategyRunSummary[]> {
+    return this.withConnection(async (connection) => {
+      const rows = await all<StrategyRunRow>(
+        connection,
+        'SELECT * FROM strategy_runs ORDER BY finished_at DESC LIMIT $limit',
+        { limit },
+      );
+      return rows.map((row) => ({
+        runId: row.run_id,
+        strategyId: row.strategy_id,
+        startedAt: iso(row.started_at),
+        finishedAt: iso(row.finished_at),
+        snapshotFetchedAt: row.snapshot_fetched_at ? iso(row.snapshot_fetched_at) : undefined,
+        scannedCount: Number(row.scanned_count),
+        coarseMatchedCount: Number(row.coarse_matched_count),
+        candidateCount: Number(row.candidate_count),
+        warningCount: (JSON.parse(row.warnings_json) as string[]).length,
+      }));
+    });
+  }
+
+  async getStrategyRun(runId: string): Promise<StrategyResult | undefined> {
+    return this.withConnection(async (connection) => {
+      const rows = await all<StrategyRunRow>(
+        connection,
+        'SELECT * FROM strategy_runs WHERE run_id = $runId',
+        { runId },
+      );
+      const row = rows[0];
+      if (!row) return undefined;
+      return {
+        runId: row.run_id,
+        strategyId: row.strategy_id,
+        startedAt: iso(row.started_at),
+        finishedAt: iso(row.finished_at),
+        snapshotFetchedAt: row.snapshot_fetched_at ? iso(row.snapshot_fetched_at) : undefined,
+        scannedCount: Number(row.scanned_count),
+        coarseMatchedCount: Number(row.coarse_matched_count),
+        candidates: JSON.parse(row.result_json) as StrategyResult['candidates'],
+        warnings: JSON.parse(row.warnings_json) as string[],
+      };
+    });
   }
 
   private async transaction(work: (connection: DuckDBConnection) => Promise<void>) {

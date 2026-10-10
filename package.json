@@ -10,16 +10,27 @@
     "sync:snapshot": "tsx src/cli.ts sync-snapshot",
     "sync:bars": "tsx src/cli.ts sync-bars",
     "strategy": "tsx src/cli.ts strategy volume-trend",
-    "pipeline": "tsx src/cli.ts pipeline volume-trend"
+    "pipeline": "tsx src/cli.ts pipeline volume-trend",
+    "dev": "vite --host 127.0.0.1",
+    "serve": "tsx src/server.ts",
+    "build:web": "vite build"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.4-r.1",
+    "lucide-react": "^1.55.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1",
     "stock-sdk": "^2.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "tsx": "^4.20.6",
     "typescript": "^6.0.2",
+    "vite": "^8.3.4",
     "vitest": "^4.1.10"
   }
 }
