@@ -226,6 +226,14 @@ export class MarketStore {
     });
   }
 
+  async getDailyBarStatus() {
+    return this.withConnection(async (connection) => {
+      const rows = await all<{ code: string; latest_date: Date | string }>(connection,
+        `SELECT code, MAX(trade_date) AS latest_date FROM daily_bars WHERE adjust_type = 'qfq' GROUP BY code ORDER BY code`);
+      return rows.map((row) => ({ code: row.code, latestDate: dateOnly(row.latest_date) }));
+    });
+  }
+
   async saveStrategyResult(result: StrategyResult) {
     await this.withConnection((connection) =>
       connection.run(

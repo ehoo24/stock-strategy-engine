@@ -52,11 +52,13 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL)
   }
   if (request.method === 'GET' && url.pathname === '/api/market/status') {
     const snapshots = await app.marketData.listSnapshots();
+    const dailyBars = await app.marketData.getDailyBarStatus();
     const latest = snapshots.map((row) => row.fetchedAt).sort().at(-1);
     sendJson(response, 200, {
       count: snapshots.length,
       fetchedAt: latest ?? null,
       source: snapshots[0]?.source ?? null,
+      dailyBars,
     });
     return;
   }
@@ -70,6 +72,10 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL)
         warnings: result.warnings,
       };
     });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/sync/data') {
+    await runExclusive('sync', response, () => app.marketData.syncStoredMarketData(config.strategyBarLimit, config.dailyBarConcurrency));
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/runs') {

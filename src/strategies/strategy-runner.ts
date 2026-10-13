@@ -19,6 +19,7 @@ export class StrategyRunner {
     const partial = await strategy.run({
       snapshots: universe.included,
       getDailyBars: (code, limit) => this.marketData.getDailyBars(code, limit),
+      getStoredDailyBars: (code, limit) => this.marketData.getStoredDailyBars(code, limit),
       warn: (message) => warnings.push(message),
     });
     const result: StrategyResult = {

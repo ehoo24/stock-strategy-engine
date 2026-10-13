@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowDown, ArrowUp, BarChart3, Box, Clock3, Database, Feather, Moon, Play, RefreshCw, Search, Sparkles, Star, Sun, X } from 'lucide-react';
 import { CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar } from 'recharts';
-import { api, type Candidate, type DailyBar, type MarketStatus, type RunSummary, type StrategyInfo, type StrategyRun } from './api';
+import { api, type Candidate, type DailyBar, type DataSyncResult, type MarketStatus, type RunSummary, type StrategyInfo, type StrategyRun } from './api';
 
 type View = 'results' | 'history';
 type SortKey = 'score' | 'change' | 'turnover';
@@ -37,6 +37,7 @@ export default function App() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [syncWarnings, setSyncWarnings] = useState<string[]>([]);
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('stock-strategy-theme');
     if (saved === 'dark' || saved === 'light') return saved;
@@ -90,11 +91,20 @@ export default function App() {
   };
 
   const syncSnapshot = async () => {
+    if (busy) return;
     setBusy('sync'); setError(''); setNotice('');
+    setSyncWarnings([]);
     try {
-      const result = await api<{ count: number; warnings: string[] }>('/sync/snapshot', { method: 'POST' });
+      const result = await api<DataSyncResult>('/sync/data', { method: 'POST' });
       setStatus(await api<MarketStatus>('/market/status'));
-      setNotice(`行情已更新：${result.count} 只股票${result.warnings.length ? `，${result.warnings.length} 条警告` : ''}`);
+      setBars([]);
+      const dates = result.dailyBars.refreshed.map((row) => row.latestDate).sort();
+      const range = dates.length ? `${dates[0]}${dates[0] !== dates.at(-1) ? ` 至 ${dates.at(-1)}` : ''}` : '无成功更新';
+      setNotice(`同步完成：快照${result.snapshot ? ` ${result.snapshot.count} 只` : '更新失败'}；日线成功 ${result.dailyBars.succeeded}/${result.dailyBars.total} 只，失败 ${result.dailyBars.failures.length} 只，返回日线截至 ${range}。历史策略结果未重算，请重新运行策略。`);
+      setSyncWarnings([...result.warnings, ...result.dailyBars.warnings,
+        ...result.dailyBars.failures.map((failure) => `${failure.code}：${failure.error}`),
+        ...(result.dailyBars.total === 0 ? ['本地暂无可更新的日线，请先通过 sync:bars 同步股票日线。'] : []),
+      ]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally { setBusy(null); }
@@ -145,7 +155,7 @@ export default function App() {
     <div className="video-shade" />
     <header className="topbar">
       <div className="brand"><svg className="brand-mark" width="40" height="40" viewBox="0 0 40 40" fill="none" aria-label="Stock Strategy Engine"><path d="M8 10L14 30L20 16L26 30L32 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
-      <nav className="top-nav" aria-label="主导航"><button onClick={() => navigateTo('results')}>策略</button><button onClick={() => navigateTo('results')}>结果</button><button onClick={() => navigateTo('history')}>历史</button><button onClick={syncSnapshot}>数据</button></nav>
+      <nav className="top-nav" aria-label="主导航"><button onClick={() => navigateTo('results')}>策略</button><button onClick={() => navigateTo('results')}>结果</button><button onClick={() => navigateTo('history')}>历史</button><button onClick={syncSnapshot} disabled={!!busy}>数据</button></nav>
       <button className="theme-toggle" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} aria-label={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'} title={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
       <div className="topbar-right"><span className="market-pill"><span className={status?.count ? 'status-dot active' : 'status-dot'} />{status?.count ? `${number.format(status.count)} 只股票` : '暂无行情'}</span><span className="top-time">{formatDate(status?.fetchedAt)}</span></div>
     </header>
@@ -157,7 +167,7 @@ export default function App() {
         <p className="hero-copy">用确定性策略筛选全市场行情，让每一次判断都能回溯到数据与信号。</p>
         <div className="hero-actions">
           <button className="glow-button" onClick={startRun} disabled={!!busy || !status?.count}><span className="button-glow" /> <Play size={18} fill="currentColor" />{busy === 'run' ? '策略运行中...' : '启动策略轨道'}</button>
-          <button className="ghost-button" onClick={syncSnapshot} disabled={!!busy}><RefreshCw size={17} className={busy === 'sync' ? 'spin' : ''} />{busy === 'sync' ? '同步行情中' : '刷新行情'}</button>
+          <button className="ghost-button" onClick={syncSnapshot} disabled={!!busy}><RefreshCw size={17} className={busy === 'sync' ? 'spin' : ''} />{busy === 'sync' ? '同步快照与日线中...' : '刷新行情与日线'}</button>
         </div>
       </div>
       <div className="hero-marquee"><p>策略能力</p><div className="marquee-window"><div className="marquee-track">{[...marqueeItems, ...marqueeItems].map(({ icon: Icon, name }, index) => <span className="marquee-item" key={`${name}-${index}`}><Icon />{name}</span>)}</div></div></div>
@@ -171,6 +181,7 @@ export default function App() {
         <div className="sidebar-divider" />
         <div className="sidebar-section-label">数据源</div>
         <div className="source-block"><Database size={18} /><div><strong>全市场快照</strong><span>{status?.source ?? '尚未同步'}</span></div></div>
+        <div className="source-block"><Database size={18} /><div><strong>本地日线 · {status?.dailyBars?.count ?? 0} 只</strong><span>截至 {status?.dailyBars?.latestDate ?? '尚未同步'}</span>{status?.dailyBars?.oldestLatestDate !== status?.dailyBars?.latestDate && <span>最旧截至 {status?.dailyBars?.oldestLatestDate}</span>}</div></div>
         <div className="sidebar-footer">本地研究工具<br />数据仅供参考</div>
       </aside>
 
@@ -179,13 +190,15 @@ export default function App() {
 
         {error && <div className="alert error"><span>{error}</span><button aria-label="关闭错误提示" onClick={() => setError('')}><X size={16} /></button></div>}
         {notice && <div className="alert notice"><span>{notice}</span><button aria-label="关闭提示" onClick={() => setNotice('')}><X size={16} /></button></div>}
+        {!!syncWarnings.length && <details className="warnings"><summary>{syncWarnings.length} 条同步警告或失败详情</summary><ul>{syncWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
 
         {view === 'results' ? <>
           <section className="run-controls"><div className="control-copy"><span className="section-kicker">策略运行</span><strong>选择策略并生成候选名单</strong><span>股票池：沪深主板 + 创业板，自动排除北交所、科创板和风险警示股票。</span></div><div className="control-actions"><label className="select-wrap"><Activity size={16} /><select aria-label="选择策略" value={strategyId} onChange={(event) => setStrategyId(event.target.value)}>{strategies.map((strategy) => <option key={strategy.id} value={strategy.id}>{strategy.name}</option>)}</select></label><button className="button primary" onClick={startRun} disabled={!!busy || !status?.count}><Play size={16} fill="currentColor" />{busy === 'run' ? '运行中...' : '运行策略'}</button></div></section>
 
           {run && <><section className="metrics"><Metric label="扫描股票" value={number.format(run.scannedCount)} suffix="只" /><Metric label="粗筛通过" value={number.format(run.coarseMatchedCount)} suffix="只" /><Metric label="最终入选" value={number.format(run.candidates.length)} suffix="只" accent /><Metric label="数据快照" value={run.snapshotFetchedAt ? new Date(run.snapshotFetchedAt).toLocaleDateString('zh-CN') : '--'} suffix="" /></section>
             <div className="section-title-row"><div><h2>候选股票</h2><p>策略：{strategies.find((item) => item.id === run.strategyId)?.name ?? run.strategyId} · 运行于 {formatDate(run.finishedAt)}</p></div><span className="result-count">{filtered.length} 条结果</span></div>
-            <div className="table-toolbar"><label className="search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索代码或名称" aria-label="搜索股票" /></label><label className="sort-select">排序<select aria-label="排序方式" value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">综合评分</option><option value="change">涨幅</option><option value="turnover">换手率</option></select></label></div>
+            {run?.strategyId === 'w-macd-radar' && <RadarSummary candidates={filtered} />}
+            <div className="table-toolbar"><label className="search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索代码或名称" aria-label="搜索股票" /></label><label className="sort-select">排序<select aria-label="排序方式" value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">{run?.strategyId === 'w-macd-radar' ? '信号健康度' : '综合评分'}</option><option value="change">涨幅</option><option value="turnover">换手率</option></select></label></div>
             <div className="table-scroll"><table><thead><tr><th>排名</th><th>股票</th><th>最新价</th><th>涨跌幅</th><th>换手率</th><th>成交额</th><th>量比</th><th>综合评分</th><th>信号</th></tr></thead><tbody>{filtered.map((candidate, index) => <tr key={candidate.code} onClick={() => void selectCandidate(candidate)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') void selectCandidate(candidate); }}><td className="rank">{String(index + 1).padStart(2, '0')}</td><td><strong>{candidate.name}</strong><span className="stock-code">{candidate.code}</span></td><td>{candidate.snapshot.price?.toFixed(2) ?? '--'}</td><td className={(candidate.snapshot.changePercent ?? 0) >= 0 ? 'positive' : 'negative'}>{percent(candidate.snapshot.changePercent)}</td><td>{percent(candidate.snapshot.turnoverRate)}</td><td>{formatMoney(candidate.snapshot.amountYuan)}</td><td>{candidate.features.volumeRatio5?.toFixed(2) ?? '--'}</td><td><span className="score"><span style={{ width: `${candidate.score}%` }} />{candidate.score.toFixed(1)}</span></td><td className="signal-cell">{candidate.reasons[0] ?? '--'}</td></tr>)}</tbody></table>{!filtered.length && <div className="table-empty">{query ? '没有匹配的股票' : '本次运行没有符合条件的股票'}</div>}</div>
             {!!run.warnings.length && <details className="warnings"><summary>{run.warnings.length} 条数据警告</summary><ul>{run.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
           </>}
@@ -194,10 +207,30 @@ export default function App() {
       </main>
     </div>
 
-    {selected && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="detail-drawer" onClick={(event) => event.stopPropagation()} aria-label="股票详情"><div className="drawer-head"><div><span className="section-kicker">股票详情</span><h2>{selected.name} <span>{selected.code}</span></h2></div><button className="icon-button" aria-label="关闭详情" onClick={() => setSelected(null)}><X size={20} /></button></div><div className="drawer-body"><div className="detail-price"><strong>{selected.snapshot.price?.toFixed(2) ?? '--'}</strong><span className={(selected.snapshot.changePercent ?? 0) >= 0 ? 'positive' : 'negative'}>{(selected.snapshot.changePercent ?? 0) >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}{percent(selected.snapshot.changePercent)}</span></div><div className="detail-stats"><div><span>综合评分</span><strong>{selected.score.toFixed(1)}</strong></div><div><span>换手率</span><strong>{percent(selected.snapshot.turnoverRate)}</strong></div><div><span>成交额</span><strong>{formatMoney(selected.snapshot.amountYuan)}</strong></div><div><span>流通市值</span><strong>{formatMoney(selected.snapshot.circulatingMarketCapYuan)}</strong></div></div><div className="detail-section"><div className="detail-heading"><h3>价格趋势</h3><span>前复权 · 日线</span></div>{detailLoading ? <div className="chart-empty">加载日线中...</div> : chartData.length ? <div className="chart-box"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={chartData} margin={{ top: 10, right: 6, left: -20, bottom: 0 }}><CartesianGrid stroke="#e7ecea" vertical={false} /><XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={26} tick={{ fontSize: 11, fill: '#81908d' }} /><YAxis domain={['auto', 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#81908d' }} /><Tooltip contentStyle={{ borderRadius: 6, border: '1px solid #dbe4e0', fontSize: 12 }} /><Line type="monotone" dataKey="close" name="收盘价" stroke="#168b6b" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="ma5" name="MA5" stroke="#e3a444" strokeWidth={1.4} dot={false} /><Line type="monotone" dataKey="ma20" name="MA20" stroke="#596d97" strokeWidth={1.4} dot={false} /></ComposedChart></ResponsiveContainer></div> : <div className="chart-empty">暂无日线数据</div>}<div className="chart-legend"><span><i className="line-close" />收盘价</span><span><i className="line-ma5" />MA5</span><span><i className="line-ma20" />MA20</span></div></div><div className="detail-section"><h3>技术指标</h3><div className="indicator-grid"><div>MA5 <strong>{selected.features.ma5?.toFixed(2) ?? '--'}</strong></div><div>MA10 <strong>{selected.features.ma10?.toFixed(2) ?? '--'}</strong></div><div>MA20 <strong>{selected.features.ma20?.toFixed(2) ?? '--'}</strong></div><div>5 日量比 <strong>{selected.features.volumeRatio5?.toFixed(2) ?? '--'}</strong></div><div>MACD DIF <strong>{selected.features.dif?.toFixed(3) ?? '--'}</strong></div><div>MACD DEA <strong>{selected.features.dea?.toFixed(3) ?? '--'}</strong></div></div></div><div className="detail-section"><h3>入选理由</h3><ul className="reasons">{selected.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div></aside></div>}
+    {selected && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="detail-drawer" onClick={(event) => event.stopPropagation()} aria-label="股票详情"><div className="drawer-head"><div><span className="section-kicker">股票详情</span><h2>{selected.name} <span>{selected.code}</span></h2></div><button className="icon-button" aria-label="关闭详情" onClick={() => setSelected(null)}><X size={20} /></button></div><div className="drawer-body"><div className="detail-price"><strong>{selected.snapshot.price?.toFixed(2) ?? '--'}</strong><span className={(selected.snapshot.changePercent ?? 0) >= 0 ? 'positive' : 'negative'}>{(selected.snapshot.changePercent ?? 0) >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}{percent(selected.snapshot.changePercent)}</span></div><div className="detail-stats"><div><span>综合评分</span><strong>{selected.score.toFixed(1)}</strong></div><div><span>换手率</span><strong>{percent(selected.snapshot.turnoverRate)}</strong></div><div><span>成交额</span><strong>{formatMoney(selected.snapshot.amountYuan)}</strong></div><div><span>流通市值</span><strong>{formatMoney(selected.snapshot.circulatingMarketCapYuan)}</strong></div></div><RadarCard candidate={selected} /><div className="detail-section"><div className="detail-heading"><h3>价格趋势</h3><span>前复权 · 日线</span></div>{detailLoading ? <div className="chart-empty">加载日线中...</div> : chartData.length ? <div className="chart-box"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={chartData} margin={{ top: 10, right: 6, left: -20, bottom: 0 }}><CartesianGrid stroke="#e7ecea" vertical={false} /><XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={26} tick={{ fontSize: 11, fill: '#81908d' }} /><YAxis domain={['auto', 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#81908d' }} /><Tooltip contentStyle={{ borderRadius: 6, border: '1px solid #dbe4e0', fontSize: 12 }} /><Line type="monotone" dataKey="close" name="收盘价" stroke="#168b6b" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="ma5" name="MA5" stroke="#e3a444" strokeWidth={1.4} dot={false} /><Line type="monotone" dataKey="ma20" name="MA20" stroke="#596d97" strokeWidth={1.4} dot={false} /></ComposedChart></ResponsiveContainer></div> : <div className="chart-empty">暂无日线数据</div>}<div className="chart-legend"><span><i className="line-close" />收盘价</span><span><i className="line-ma5" />MA5</span><span><i className="line-ma20" />MA20</span></div></div><div className="detail-section"><h3>技术指标</h3><div className="indicator-grid"><div>MA5 <strong>{selected.features.ma5?.toFixed(2) ?? '--'}</strong></div><div>MA10 <strong>{selected.features.ma10?.toFixed(2) ?? '--'}</strong></div><div>MA20 <strong>{selected.features.ma20?.toFixed(2) ?? '--'}</strong></div><div>5 日量比 <strong>{selected.features.volumeRatio5?.toFixed(2) ?? '--'}</strong></div><div>MACD DIF <strong>{selected.features.dif?.toFixed(3) ?? '--'}</strong></div><div>MACD DEA <strong>{selected.features.dea?.toFixed(3) ?? '--'}</strong></div></div></div><div className="detail-section"><h3>入选理由</h3><ul className="reasons">{selected.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div></aside></div>}
   </div>;
 }
 
 function Metric({ label, value, suffix, accent = false }: { label: string; value: string; suffix: string; accent?: boolean }) {
   return <div className={`metric ${accent ? 'metric-accent' : ''}`}><span>{label}</span><strong>{value}<small>{suffix}</small></strong></div>;
+}
+
+function RadarSummary({ candidates }: { candidates: Candidate[] }) {
+  const stages = [
+    ['left-watch', '左侧观察'], ['micro-right', '微右侧确认'], ['neckline-breakout', '颈线突破'],
+  ] as const;
+  return <><section className="metrics">{stages.map(([stage, label]) => <Metric key={stage} label={label}
+    value={String(candidates.filter((row) => row.features.wMacdRadar?.stage === stage).length)} suffix="只" />)}
+    <Metric label="指标口径" value="健康度" suffix="非概率" accent /></section>
+    <div className="alert notice"><span>短波段基准：信号后次日开盘观察，10 个交易日内先达到 +5% 或先触及局部失效位；当前尚未完成历史胜率校准。止损距离是计划测算，跳空和流动性可能造成实际成交偏差。</span></div></>;
+}
+
+function RadarCard({ candidate }: { candidate: Candidate }) {
+  const radar = candidate.features.wMacdRadar;
+  if (!radar) return null;
+  const distance = (value: { percent: number; atrMultiple: number }) => `${percent(value.percent)} / ${number.format(Math.abs(value.atrMultiple))}×ATR`;
+  return <div className="detail-section"><div className="detail-heading"><h3>{radar.stageLabel} · 信号健康度 {radar.qualityScore.toFixed(1)}</h3><span>截至 {radar.asOfDate}</span></div>
+    <div className="detail-stats"><div><span>距暂定第二底</span><strong>{distance(radar.fromLow)}</strong></div><div><span>局部失效位</span><strong>{distance(radar.localInvalidation)}</strong></div><div><span>结构失效位</span><strong>{distance(radar.structuralInvalidation)}</strong></div><div><span>距颈线空间</span><strong>{distance(radar.necklineSpace)}</strong></div></div>
+    <ul className="reason-list"><li>第二段绿柱：{radar.secondBlockBars} 根，面积比 {(radar.areaRatio * 100).toFixed(1)}% {radar.secondBlockComplete ? '[已闭合]' : '[未闭合动态值]'}</li><li>负柱连续收缩 {radar.consecutiveContractionBars} 根；回落量比 {radar.pullbackVolumeRatio.toFixed(2)}；当日量比 {radar.volumeRatio20.toFixed(2)}</li><li>计划颈线盈亏比 {radar.plannedRewardRisk.toFixed(2)}；动能/结构/量价评分 {radar.scoreComponents.momentum}/{radar.scoreComponents.structure}/{radar.scoreComponents.volume}</li>{radar.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+    <p className="subtitle">止损距离是事前计划测算，实际委托可能受集合竞价跳空和盘口流动性影响。</p></div>;
 }

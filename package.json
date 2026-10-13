@@ -8,9 +8,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sync:snapshot": "tsx src/cli.ts sync-snapshot",
+    "sync:data": "tsx src/cli.ts sync-data",
     "sync:bars": "tsx src/cli.ts sync-bars",
     "strategy": "tsx src/cli.ts strategy volume-trend",
+    "strategy:w-macd": "tsx src/cli.ts strategy w-macd",
+    "strategy:w-macd-radar": "tsx src/cli.ts strategy w-macd-radar",
     "pipeline": "tsx src/cli.ts pipeline volume-trend",
+    "pipeline:w-macd": "tsx src/cli.ts pipeline w-macd",
     "dev": "vite --host 127.0.0.1",
     "serve": "tsx src/server.ts",
     "build:web": "vite build"

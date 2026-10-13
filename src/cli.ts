@@ -14,6 +14,16 @@ try {
     case 'sync-bars':
       await syncBars(argument);
       break;
+    case 'sync-data': {
+      console.log('正在更新行情快照及本地已有股票的前复权日线...');
+      let lastPrinted = 0;
+      const result = await app.marketData.syncStoredMarketData(config.strategyBarLimit, config.dailyBarConcurrency, (done) => {
+        if (done - lastPrinted >= 10) { lastPrinted = done; console.log(`已处理 ${done} 只股票`); }
+      });
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.snapshot || result.dailyBars.failures.length) process.exitCode = 1;
+      break;
+    }
     case 'strategy':
       await runStrategy(argument ?? 'volume-trend');
       break;
@@ -57,6 +67,8 @@ async function syncBars(rawLimit?: string) {
   );
   console.log(`日线同步完成：成功 ${result.succeeded}/${result.total}，失败 ${result.failures.length}`);
   for (const failure of result.failures.slice(0, 20)) console.warn(`${failure.code}: ${failure.error}`);
+  for (const warning of result.warnings) console.warn(warning);
+  console.log('日线覆盖：', await app.marketData.getDailyBarStatus());
 }
 
 async function runStrategy(id: string) {
@@ -67,8 +79,45 @@ async function runStrategy(id: string) {
 function printStrategyResult(result: StrategyResult) {
   console.log(`\n策略：${result.strategyId}`);
   console.log(`快照时间：${result.snapshotFetchedAt ?? '--'}`);
-  console.log(`可交易股票 ${result.scannedCount} 只，粗筛 ${result.coarseMatchedCount} 只，最终 ${result.candidates.length} 只`);
-  console.table(
+  if (result.strategyId === 'w-macd-radar') {
+    console.log(`可交易股票池 ${result.scannedCount} 只，本地日线分析 ${result.coarseMatchedCount} 只，雷达信号 ${result.candidates.length} 只`);
+    for (const stage of ['left-watch', 'micro-right', 'neckline-breakout'] as const) {
+      const group = result.candidates.filter((item) => item.features.wMacdRadar?.stage === stage);
+      const label = { 'left-watch': '左侧观察', 'micro-right': '微右侧确认', 'neckline-breakout': '颈线突破' }[stage];
+      console.log(`\n${label}：${group.length} 只`);
+      console.table(group.map((item) => { const row = item.features.wMacdRadar!; return {
+        code: item.code, name: item.name, health: row.qualityScore, asOf: row.asOfDate,
+        low2: `${row.provisionalLowDate}/${row.provisionalLow.toFixed(2)}`,
+        fromLow: `${row.fromLow.percent.toFixed(1)}%/${row.fromLow.atrMultiple.toFixed(1)}×ATR`,
+        localRisk: `${row.localInvalidation.percent.toFixed(1)}%/${row.localInvalidation.atrMultiple.toFixed(1)}×ATR`,
+        necklineSpace: `${row.necklineSpace.percent.toFixed(1)}%/${row.necklineSpace.atrMultiple.toFixed(1)}×ATR`,
+        rewardRisk: row.plannedRewardRisk.toFixed(2), areaRatio: `${(row.areaRatio * 100).toFixed(1)}%${row.secondBlockComplete ? '' : ' 动态'}`,
+        reasons: item.reasons.join('；'),
+      }; }));
+    }
+  } else if (result.strategyId === 'w-macd') {
+    console.log(`可交易股票池 ${result.scannedCount} 只，本地日线分析 ${result.coarseMatchedCount} 只，入选 ${result.candidates.length} 只`);
+    for (const status of ['strict', 'similar'] as const) {
+      const group = result.candidates.filter((item) => item.features.wMacdPattern?.status === status);
+      console.log(`\n${status === 'strict' ? '严格符合' : '相似观察'}：${group.length} 只`);
+      console.table(group.map((item) => {
+        const pattern = item.features.wMacdPattern!;
+        return {
+          code: item.code, name: item.name, score: item.score,
+          asOf: pattern.asOfDate,
+          firstLow: `${pattern.firstLowDate} / ${pattern.firstLow.toFixed(3)}`,
+          secondLow: `${pattern.secondLowDate} / ${pattern.secondLow.toFixed(3)}`,
+          lowChange: `${pattern.lowChangePercent.toFixed(2)}%`,
+          areaRatio: `${(pattern.negativeAreaRatio * 100).toFixed(1)}%`,
+          zeroBelowBars: pattern.macdBelowZeroBars,
+          neckline: pattern.aboveNeckline ? '已突破' : '未突破',
+          reasons: item.reasons.join('；'),
+        };
+      }));
+    }
+  } else {
+    console.log(`可交易股票 ${result.scannedCount} 只，粗筛 ${result.coarseMatchedCount} 只，最终 ${result.candidates.length} 只`);
+    console.table(
     result.candidates.map((item, index) => ({
       rank: index + 1,
       code: item.code,
@@ -79,7 +128,8 @@ function printStrategyResult(result: StrategyResult) {
       volumeRatio5: item.features.volumeRatio5?.toFixed(2),
       reasons: item.reasons.join('；'),
     })),
-  );
+    );
+  }
   if (result.warnings.length) console.warn(`警告 ${result.warnings.length} 条，示例：\n${result.warnings.slice(0, 10).join('\n')}`);
   console.log(`结果已保存，runId=${result.runId}`);
 }
@@ -96,7 +146,10 @@ Stock Strategy Engine
 
   pnpm sync:snapshot          获取并保存全市场行情快照
   pnpm sync:bars -- 100       为前 100 只股票同步日线
+  npm run sync:data          强制刷新快照及本地已有股票的日线，显示实际截止日期
   pnpm strategy              用本地快照运行放量趋势策略，缺日线时自动补齐
+  npm run strategy:w-macd     仅用现有本地日线筛选最近 90 个自然日的 W-MACD 形态
+  npm run strategy:w-macd-radar  扫描左侧观察、微右侧确认和颈线突破阶段
   pnpm pipeline              同步快照后立即运行策略
   pnpm exec tsx src/cli.ts list
 

@@ -4,7 +4,7 @@ export function calculateTechnicalFeatures(bars: DailyBar[]): TechnicalFeatures 
   if (bars.length < 26) throw new Error(`技术指标至少需要 26 根日线，当前仅 ${bars.length} 根`);
   const closes = bars.map((bar) => bar.close);
   const volumes = bars.map((bar) => bar.volume);
-  const macd = calculateMacd(closes);
+  const macd = calculateMacdSeries(closes);
   const previous = macd.at(-2);
   const latest = macd.at(-1);
   const latestClose = closes.at(-1)!;
@@ -30,7 +30,13 @@ export function calculateTechnicalFeatures(bars: DailyBar[]): TechnicalFeatures 
   };
 }
 
-function calculateMacd(values: number[]) {
+export interface MacdPoint {
+  dif: number;
+  dea: number;
+  histogram: number;
+}
+
+export function calculateMacdSeries(values: number[]): MacdPoint[] {
   const ema12 = ema(values, 12);
   const ema26 = ema(values, 26);
   const dif = values.map((_, index) => ema12[index]! - ema26[index]!);

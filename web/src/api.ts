@@ -2,6 +2,19 @@ export interface MarketStatus {
   count: number;
   fetchedAt: string | null;
   source: string | null;
+  dailyBars: { count: number; oldestLatestDate: string | null; latestDate: string | null };
+}
+
+export interface DataSyncResult {
+  snapshot: { count: number; fetchedAt: string; source: string } | null;
+  dailyBars: {
+    total: number; succeeded: number;
+    failures: Array<{ code: string; error: string }>;
+    warnings: string[];
+    refreshed: Array<{ code: string; latestDate: string; count: number }>;
+  };
+  dailyBarStatus: MarketStatus['dailyBars'];
+  warnings: string[];
 }
 
 export interface StrategyInfo { id: string; name: string }
@@ -29,8 +42,18 @@ export interface Candidate {
     dea?: number;
     macdHistogram?: number;
     breakout20: boolean;
+    wMacdRadar?: {
+      stage: 'left-watch' | 'micro-right' | 'neckline-breakout'; stageLabel: string;
+      asOfDate: string; signalDate: string; qualityScore: number; provisionalLow: number;
+      secondBlockBars: number; secondBlockComplete: boolean; areaRatio: number;
+      histogramContractionPercent?: number; consecutiveContractionBars: number;
+      volumeRatio20: number; pullbackVolumeRatio: number; plannedRewardRisk: number; atr14: number;
+      fromLow: Distance; localInvalidation: Distance; structuralInvalidation: Distance; necklineSpace: Distance;
+      scoreComponents: { momentum: number; structure: number; volume: number }; warnings: string[];
+    };
   };
 }
+interface Distance { price: number; percent: number; atrMultiple: number }
 
 export interface RunSummary {
   runId: string;

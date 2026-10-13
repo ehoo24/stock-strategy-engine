@@ -59,6 +59,87 @@ export interface TechnicalFeatures {
   aboveMa20: boolean;
   bullishMaAlignment: boolean;
   breakout20: boolean;
+  wMacdPattern?: WMacdPattern;
+  wMacdRadar?: WMacdRadar;
+}
+
+export type WMacdStage = 'left-watch' | 'micro-right' | 'neckline-breakout';
+export interface PriceDistance { price: number; percent: number; atrMultiple: number }
+export interface WMacdRadar {
+  version: '1';
+  stage: WMacdStage;
+  stageLabel: string;
+  asOfDate: string;
+  signalDate: string;
+  signalAgeBars: number;
+  windowStart: string;
+  firstLow: number;
+  firstLowDate: string;
+  provisionalLow: number;
+  provisionalLowDate: string;
+  neckline: number;
+  necklineDate: string;
+  microHigh?: number;
+  microHighDate?: string;
+  microHighConfirmedDate?: string;
+  secondBlockStart: string;
+  secondBlockEnd: string;
+  secondBlockBars: number;
+  secondBlockComplete: boolean;
+  firstArea: number;
+  secondArea: number;
+  areaRatio: number;
+  histogramContractionPercent?: number;
+  firstContraction: boolean;
+  consecutiveContractionBars: number;
+  volumeRatio20: number;
+  pullbackVolumeRatio: number;
+  atr14: number;
+  fromLow: PriceDistance;
+  localInvalidation: PriceDistance;
+  structuralInvalidation: PriceDistance;
+  necklineSpace: PriceDistance;
+  plannedRewardRisk: number;
+  qualityScore: number;
+  scoreComponents: { momentum: number; structure: number; volume: number };
+  warnings: string[];
+  reasons: string[];
+}
+
+export type WMacdPatternStatus = 'strict' | 'similar';
+
+export interface WMacdPattern {
+  status: WMacdPatternStatus;
+  windowStart: string;
+  windowBars: number;
+  priorHighDate: string;
+  priorHigh: number;
+  firstLowDate: string;
+  firstLow: number;
+  middleHighDate: string;
+  middleHigh: number;
+  secondLowDate: string;
+  secondLow: number;
+  lowChangePercent: number;
+  lowGapBars: number;
+  firstNegativeArea: number;
+  secondNegativeArea: number;
+  negativeAreaRatio: number;
+  firstNegativeBars: number;
+  secondNegativeBars: number;
+  macdBelowZeroBars: number;
+  macdMinLine: number;
+  macdMinLineAtr: number;
+  firstNegativeStart: string;
+  firstNegativeEnd: string;
+  secondNegativeStart: string;
+  secondNegativeEnd: string;
+  secondNegativeComplete: boolean;
+  asOfDate: string;
+  currentHistogram: number;
+  currentMacdRising: boolean;
+  aboveNeckline: boolean;
+  reasons: string[];
 }
 
 export interface StrategyCandidate {
@@ -85,6 +166,7 @@ export interface StrategyResult {
 export interface StrategyContext {
   snapshots: MarketSnapshot[];
   getDailyBars(code: string, limit: number): Promise<DailyBar[]>;
+  getStoredDailyBars(code: string, limit: number): Promise<DailyBar[]>;
   warn(message: string): void;
 }
 
